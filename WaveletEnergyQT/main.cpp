@@ -137,6 +137,34 @@ int main(int argc, char *argv[])
     }
     string ROIFilePattern = pElem->GetText();
 
+    //Tiles Handling
+    pElem = hRoot.FirstChild("inputGroups").FirstChild("directory").Element();
+    if(!pElem)
+    {
+        cout << "No: inputGroups -> directory entry";
+        return 0;
+    }
+    if(!pElem->GetText())
+    {
+        cout << "Empty: inputGroups -> directory entry";
+        return 0;
+    }
+    path TileFolder(pElem->GetText());
+
+    pElem = hRoot.FirstChild("inputGroups").FirstChild("pattern").Element();
+    if(!pElem)
+    {
+        cout << "No: inputGroups -> pattern entry";
+        return 0;
+    }
+    if(!pElem->GetText())
+    {
+        cout << "Empty: inputGroups -> pattern entry";
+        return 0;
+    }
+    string TileFilePattern = pElem->GetText();
+
+
     pElem = hRoot.FirstChild("features").Element();
     if(!pElem)
     {
@@ -307,8 +335,45 @@ int main(int argc, char *argv[])
 
     RoiFileNameList.sort();
 
+    //create TileList
+    if(!exists(TileFolder) or !is_directory(TileFolder))
+    {
+        cout << TileFolder.string() << " is not a valid input directory";
+        cout << "\n\n";
+        return 0;
+    }
+
+    cout << TileFolder.string() << "is a valid input directory";
+    cout << "\n\n";
+
+    count = 0;
+
+    list<string> TileFileNameList;
+
+    for (directory_entry& fileToProcess : directory_iterator(TileFolder))
+    {
+        cout << count << "\t" << fileToProcess.path().filename().string();
+
+        regex TilePattern(TileFilePattern);
+
+        if(!regex_match(fileToProcess.path().filename().string(), TilePattern))
+        {
+            cout << "  File does not fit the patern  " << "\n";
+            continue;
+        }
+
+        cout << "\n";
+        count++;
+
+        TileFileNameList.push_back(fileToProcess.path().string());
+
+    }
+
+    TileFileNameList.sort();
+
 
     list<string>::iterator iRoiFileNameList = RoiFileNameList.begin();
+    list<string>::iterator iTileFileNameList = TileFileNameList.begin();
 
     for (list<string>::iterator iImageFileNameList = ImageFileNameList.begin(); iImageFileNameList !=ImageFileNameList.end(); iImageFileNameList++)
     {
@@ -329,7 +394,9 @@ int main(int argc, char *argv[])
 
         //ROIFile.
         string RoiFileName = *iRoiFileNameList;
-        iRoiFileNameList++;
+
+        if(iRoiFileNameList !=RoiFileNameList.end())
+            iRoiFileNameList++;
 
         path ROIFile(RoiFileName);
         Mat ImROI;
@@ -346,6 +413,34 @@ int main(int argc, char *argv[])
             cout << "no Mask File default mask is created" << "\n";
         }
         ImROI.convertTo(ImROI, CV_16U);
+
+        //TileFile.
+        string TileFileName;
+        bool noTiles = true;
+        Mat ImTile;
+        path TileFile;
+
+        if(iTileFileNameList !=TileFileNameList.end())
+        {
+            TileFileName = *iTileFileNameList;
+            iTileFileNameList++;
+
+            TileFile =path(TileFileName);
+        }
+
+
+        if(exists(TileFile) && is_regular_file(TileFile))
+        {
+            ImTile = imread(TileFile.string(), CV_LOAD_IMAGE_ANYDEPTH);
+            noTiles = false;
+        }
+        else
+        {
+            cout << "no Tile File " << "\n";
+        }
+        if(!noTiles)
+            ImTile.convertTo(ImTile, CV_16U);
+
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // add controll mask file size
