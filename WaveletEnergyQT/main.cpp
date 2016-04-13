@@ -6,7 +6,7 @@
 #include "opencv2/core/core.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
-#include "opencv2/contrib/contrib.hpp"
+//#include "opencv2/contrib/contrib.hpp"
 
 #include <filesystem.hpp>
 #include <regex.hpp>
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
     string OutFileNameExtension = ".bmp";
 //    string FileNameExtension = ".bmp";
 
-    bool displayResult = 1;
+    bool displayResult = 0;
     bool goThrough = 0;
     bool saveResult = 0;
     bool commonResult = 0;
@@ -234,8 +234,8 @@ int main(int argc, char *argv[])
     }
 
     // read list of image files
-    // new boost directory iterator
 
+    //create FileList
     if(!exists(InFolder) or !is_directory(InFolder))
     {
         cout << InFolder.string() << " is not a valid input directory";
@@ -247,10 +247,11 @@ int main(int argc, char *argv[])
     cout << "\n\n";
 
     int count = 0;
+
+    list<string> ImageFileNameList;
+
     for (directory_entry& fileToProcess : directory_iterator(InFolder))
     {
-        //string InFileName = fileToProcess.path(). filename().string();
-        //path InFileName = fileToProcess.path(). filename().string();
         cout << count << "\t" << fileToProcess.path().filename().string();
 
         regex FilePattern(InFilePattern);
@@ -264,25 +265,73 @@ int main(int argc, char *argv[])
         cout << "\n";
         count++;
 
-        //int lastIndex = InFileName.find_last_of(".");
+        ImageFileNameList.push_back(fileToProcess.path().string());
 
-        string FileNameBase = fileToProcess.path().stem().string(); //InFileName.substr(0, lastIndex);
-        //string InFileNameFull = fileToProcess.path().string();
-        path ROIFile = ROIFolder.append(FileNameBase + ROIFilePattern);
+    }
 
+    ImageFileNameList.sort();
+
+    //create RoiList
+    if(!exists(ROIFolder) or !is_directory(ROIFolder))
+    {
+        cout << ROIFolder.string() << " is not a valid input directory";
+        cout << "\n\n";
+        return 0;
+    }
+
+    cout << ROIFolder.string() << "is a valid input directory";
+    cout << "\n\n";
+
+    count = 0;
+
+    list<string> RoiFileNameList;
+
+    for (directory_entry& fileToProcess : directory_iterator(ROIFolder))
+    {
+        cout << count << "\t" << fileToProcess.path().filename().string();
+
+        regex RoiPattern(ROIFilePattern);
+
+        if(!regex_match(fileToProcess.path().filename().string(), RoiPattern))
+        {
+            cout << "  File does not fit the patern  " << "\n";
+            continue;
+        }
+
+        cout << "\n";
+        count++;
+
+        RoiFileNameList.push_back(fileToProcess.path().string());
+
+    }
+
+    RoiFileNameList.sort();
+
+
+    list<string>::iterator iRoiFileNameList = RoiFileNameList.begin();
+
+    for (list<string>::iterator iImageFileNameList = ImageFileNameList.begin(); iImageFileNameList !=ImageFileNameList.end(); iImageFileNameList++)
+    {
         // read image
-        Mat ImIn = imread(fileToProcess.path().string(), CV_LOAD_IMAGE_ANYDEPTH);
 
+        string ImageFileName = *iImageFileNameList;
+        path ImageFile(ImageFileName);
 
+        string FileNameBase = ImageFile.filename().stem().string();
 
+        Mat ImIn = imread(ImageFileName, CV_LOAD_IMAGE_ANYDEPTH);
 
-        int maxX, maxY;//, maxXY;
+        int maxX, maxY, maxXY;
         maxX = ImIn.cols;
         maxY = ImIn.rows;
-        //maxXY = maxX * maxY;
+        maxXY = maxX * maxY;
 
 
         //ROIFile.
+        string RoiFileName = *iRoiFileNameList;
+        iRoiFileNameList++;
+
+        path ROIFile(RoiFileName);
         Mat ImROI;
         bool noPartitions = true;
 
@@ -298,7 +347,7 @@ int main(int argc, char *argv[])
         }
         ImROI.convertTo(ImROI, CV_16U);
 
-
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // add controll mask file size
 
 
@@ -316,6 +365,7 @@ int main(int argc, char *argv[])
             //ImTemp = Mat::zeros(maxY, maxX, CV_8UC3);
             //ImIn.convertTo(ImTemp, CV_8UC3);
             ImShow = ShowSolidRegionOnImage(GetContour5(ImROI), ImShow);
+            //ImShow = ShowImageF32PseudoColor(ImRoiF,0.0, 32.0);
             imshow("ROI", ImShow);
             if(goThrough)
                 waitKey(100);
@@ -381,9 +431,9 @@ int main(int argc, char *argv[])
                 //ImTemp = ImTemp * 100;
                 //applyColorMap(ImTemp, ImShow, COLORMAP_JET);
 
-                ImTemp = Mat::zeros(SmallIm.rows,SmallIm.cols, CV_8UC3);
+                //ImTemp = Mat::zeros(SmallIm.rows,SmallIm.cols, CV_8UC3);
                 //ImIn.convertTo(ImTemp, CV_8UC3);
-                ImShow = ShowSolidRegionOnImage(ImROI, ImShow);
+                ImShow = ShowSolidRegionOnImage(SmallROI, ImShow);
                 imshow("ROISmall", ImShow);
 
                 if(goThrough)
@@ -403,6 +453,7 @@ int main(int argc, char *argv[])
             //calculate filters
             int oldFilterSize = 0;
             int scale;
+
             for (scale = 1; scale <= 10; scale++)
             {
                 Mat FilterLL, FilterLH, FilterHL, FilterHH;
@@ -468,7 +519,7 @@ int main(int argc, char *argv[])
                     //LL band
                     //ImShow = ImageInPseudocolors(EnImLL, 2, 0, maxIntLL, &minSubband, &maxSubband);
                     ImShow = ShowImageF32PseudoColor(EnImLL,0.0, 255.0);
-                    MaskImageInPseudocolors(ImShow, ImROI, 200);
+                    MaskImageInPseudocolors(ImShow, SmallROI, 200);
                     //ImScale = PrepareColorScale(minSubband, maxSubband, 100);
 
                     if (displayResult)
@@ -484,7 +535,7 @@ int main(int argc, char *argv[])
                     //HL band
                     //ImShow = ImageInPseudocolors(EnImHL, 2, 0, maxIntHL, &minSubband, &maxSubband);
                     ImShow = ShowImageF32PseudoColor(EnImHL,0.0, 255.0);
-                    MaskImageInPseudocolors(ImShow, ImROI, 200);
+                    MaskImageInPseudocolors(ImShow, SmallROI, 200);
                     //ImScale = PrepareColorScale(minSubband, maxSubband, 100);
                     if (displayResult)
                     {
@@ -499,7 +550,7 @@ int main(int argc, char *argv[])
                     //LH band
                     //ImShow = ImageInPseudocolors(EnImLH, 2, 0, maxIntLH, &minSubband, &maxSubband);
                     ImShow = ShowImageF32PseudoColor(EnImLH,0.0, 256.0);
-                    MaskImageInPseudocolors(ImShow, ImROI, 200);
+                    MaskImageInPseudocolors(ImShow, SmallROI, 200);
                     //ImScale = PrepareColorScale(minSubband, maxSubband, 100);
                     if (displayResult)
                     {
@@ -514,7 +565,7 @@ int main(int argc, char *argv[])
                     //HH band
                     //ImShow = ImageInPseudocolors(EnImHH, 2, 0, maxIntHH, &minSubband, &maxSubband);
                     ImShow = ShowImageF32PseudoColor(EnImLL,0.0, 256.0);
-                    MaskImageInPseudocolors(ImShow, ImROI, 200);
+                    MaskImageInPseudocolors(ImShow, SmallROI, 200);
                     //ImScale = PrepareColorScale(minSubband, maxSubband, 100);
                     if (displayResult)
                     {
@@ -526,17 +577,6 @@ int main(int argc, char *argv[])
                         string OutFileName = OutFolder.string()  + FileNameBase + "Roi" + ItoStrLZ(roi,5) + "Band" + "HH" + "Scale" + ItoStrLZ(scale,2) + OutFileNameExtension;
                         imwrite(OutFileName, ImShow);
                     }
-
-                    if(displayResult)
-                    {
-                        Mat ImROITemp = ImROI * 1;
-                        ImROITemp.convertTo(ImTemp, CV_8U);
-                        ImTemp = ImTemp * 50;
-                        applyColorMap(ImTemp, ImShow, COLORMAP_JET);
-                        imshow("ROI", ImShow);
-                    }
-
-
 
                     if (displayResult)
                     {
@@ -574,7 +614,7 @@ int main(int argc, char *argv[])
         //cout << OutString << "\n";
         // save energies file
         path OutFile = OutFolder;
-        OutFile.append(fileToProcess.path().filename().string() + ".csv");
+        OutFile.append(ImageFile.filename().string() + ".csv");
 
         ofstream out(OutFile.string());
         out << OutString;
